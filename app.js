@@ -1,5 +1,5 @@
 const feeds = ['All','Clearance','Computers','Electronics','Featured','Home','Gourmet','Shirts','Sports','Tools','Wootoff'];
-const state = {feed:'All',items:[],query:'',minDiscount:0,sort:'percent',saved:new Set(JSON.parse(localStorage.getItem('wootScoutSaved')||'[]')),mode:'deals'};
+const state = {feed:'All',items:[],query:'',minDiscount:0,maxPrice:null,sort:'percent',saved:new Set(JSON.parse(localStorage.getItem('wootScoutSaved')||'[]')),mode:'deals'};
 
 const $ = s => document.querySelector(s);
 const dealGrid=$('#dealGrid'), statusEl=$('#status'), resultCount=$('#resultCount'), dealCount=$('#dealCount');
@@ -13,7 +13,7 @@ function esc(s=''){return String(s).replace(/[&<>'"]/g,m=>({'&':'&amp;','<':'&lt
 
 function renderChips(){
   $('#categoryChips').innerHTML=feeds.map(f=>`<button class="chip ${state.feed===f?'active':''}" data-feed="${f}">${f==='Wootoff'?'Woot-Off':f}</button>`).join('');
-  document.querySelectorAll('[data-feed]').forEach(b=>b.onclick=()=>loadFeed(b.dataset.feed));
+  document.querySelectorAll('[data-feed]').forEach(b=>b.onclick=()=>{state.maxPrice=null;loadFeed(b.dataset.feed)});
 }
 
 async function loadFeed(feed='All', force=false){
@@ -31,6 +31,7 @@ function filtered(){
   const q=state.query.trim().toLowerCase();
   if(q) rows=rows.filter(i=>[i.Title,i.Subtitle,...(i.Categories||[])].filter(Boolean).join(' ').toLowerCase().includes(q));
   rows=rows.filter(i=>discount(i)>=state.minDiscount);
+  if(state.maxPrice!==null) rows=rows.filter(i=>{const p=priceMin(i.SalePrice);return p!==null&&p<=state.maxPrice});
   rows.sort((a,b)=>{
     if(state.sort==='dollars') return savings(b)-savings(a);
     if(state.sort==='priceLow') return (priceMin(a.SalePrice)??Infinity)-(priceMin(b.SalePrice)??Infinity);
@@ -43,8 +44,8 @@ function filtered(){
 
 function applyFilters(){
   const rows=filtered(); statusEl.hidden=true; resultCount.textContent=`${rows.length.toLocaleString()} shown`;
-  $('#resultsLabel').textContent=state.mode==='saved'?'SAVED DEALS':state.query?'SEARCH RESULTS':'BIGGEST DISCOUNTS';
-  $('#resultsTitle').textContent=state.mode==='saved'?'Your watch pile':state.query?`Matches for “${state.query}”`:'Top markdowns right now';
+  $('#resultsLabel').textContent=state.mode==='saved'?'SAVED DEALS':state.query?'SEARCH RESULTS':state.maxPrice!==null?`UNDER ${money(state.maxPrice)}`:'BIGGEST DISCOUNTS';
+  $('#resultsTitle').textContent=state.mode==='saved'?'Your watch pile':state.query?`Matches for “${state.query}”`:state.maxPrice!==null?'Best cheap finds':'Top markdowns right now';
   if(!rows.length){dealGrid.innerHTML='<div class="empty">No matching live deals. Try lowering the discount filter or switching categories.</div>';return}
   dealGrid.innerHTML=rows.map(card).join('');
   document.querySelectorAll('.save-btn').forEach(btn=>btn.onclick=e=>{e.preventDefault();e.stopPropagation();toggleSave(btn.dataset.id);});
@@ -72,7 +73,7 @@ function card(i){
 
 function toggleSave(id){state.saved.has(id)?state.saved.delete(id):state.saved.add(id); localStorage.setItem('wootScoutSaved',JSON.stringify([...state.saved])); applyFilters();}
 
-$('#searchInput').addEventListener('input',e=>{state.query=e.target.value;state.mode='deals';applyFilters()});
+$('#searchInput').addEventListener('input',e=>{state.query=e.target.value;state.maxPrice=null;state.mode='deals';applyFilters()});
 $('#clearSearch').onclick=()=>{$('#searchInput').value='';state.query='';applyFilters()};
 $('#sortSelect').onchange=e=>{state.sort=e.target.value;applyFilters()};
 $('#discountSelect').onchange=e=>{state.minDiscount=Number(e.target.value);applyFilters()};
@@ -80,9 +81,9 @@ $('#refreshBtn').onclick=()=>loadFeed(state.feed,true);
 
 document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
   const p=b.dataset.preset; state.mode='deals';
-  if(p==='70'){state.minDiscount=70;$('#discountSelect').value='70';applyFilters();}
-  if(p==='under25'){state.minDiscount=0;$('#discountSelect').value='0';state.sort='priceLow';$('#sortSelect').value='priceLow';state.query='';$('#searchInput').value='';applyFilters();}
-  if(p==='clearance'){loadFeed('Clearance');}
+  if(p==='70'){state.maxPrice=null;state.minDiscount=70;$('#discountSelect').value='70';state.sort='percent';$('#sortSelect').value='percent';applyFilters();}
+  if(p==='under25'){state.maxPrice=25;state.minDiscount=0;$('#discountSelect').value='0';state.sort='priceLow';$('#sortSelect').value='priceLow';state.query='';$('#searchInput').value='';applyFilters();}
+  if(p==='clearance'){state.maxPrice=null;loadFeed('Clearance');}
 });
 
 document.querySelectorAll('[data-nav]').forEach(btn=>btn.onclick=()=>{

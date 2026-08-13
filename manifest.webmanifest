@@ -1,0 +1,10 @@
+{
+  "name": "Woot Scout",
+  "short_name": "Woot Scout",
+  "description": "Search live Woot deals and rank the biggest discounts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f7f8",
+  "theme_color": "#0f5b4c",
+  "icons": []
+}
